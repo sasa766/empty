@@ -11,29 +11,46 @@ PRODUCT_ID = 211942
 START_DATE = date(2025, 9, 26)  # 공연 시작일
 END_DATE   = date(2025, 11, 2)  # 공연 종료일
 
+# 공통 헤더 (브라우저 흉내)
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    "Referer": f"https://ticket.melon.com/performance/index.htm?prodId={PRODUCT_ID}",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+}
+
 def fetch_schedules(day: str):
     """특정 날짜의 회차 리스트 가져오기"""
     url = f"https://tktapi.melon.com/api/product/schedule/timelist.json?prodId={PRODUCT_ID}&perfDay={day}&pocCode=SC0002&perfTypeCode=GN0006&sellTypeCode=ST0001&seatCntDisplayYn=N&requestservicetype=P"
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Referer": f"https://ticket.melon.com/performance/index.htm?prodId={PRODUCT_ID}"
-    }
-    resp = requests.get(url, headers=headers)
-    data = resp.json()
-    return data.get("data", {}).get("perfTimelist", [])
+    resp = requests.get(url, headers=HEADERS)
+
+    try:
+        data = resp.json()
+        return data.get("data", {}).get("perfTimelist", [])
+    except Exception:
+        print(f"[ERROR] 일정 조회 JSON 파싱 실패 ({day})")
+        print("응답 앞부분:", resp.text[:200])
+        return []
 
 def check_seat(schedule_no: str):
     """해당 회차(scheduleNo)의 잔여좌석 확인"""
     url = f"https://ticket.melon.com/tktapi/product/seatStateInfo.json?v=1&prodId={PRODUCT_ID}&scheduleId={schedule_no}&callback=jQuery123456"
-    resp = requests.get(url).text
+    resp = requests.get(url, headers=HEADERS).text
 
     # JSONP → JSON 변환
     start = resp.find("(")
     end = resp.rfind(")")
     if start == -1 or end == -1:
+        print(f"[ERROR] JSONP 파싱 실패 (schedule {schedule_no})")
+        print("응답 앞부분:", resp[:200])
         return None
-    data = json.loads(resp[start+1:end])
-    return data.get("rmdSeatCnt", 0)
+
+    try:
+        data = json.loads(resp[start+1:end])
+        return data.get("rmdSeatCnt", 0)
+    except Exception:
+        print(f"[ERROR] JSON 로드 실패 (schedule {schedule_no})")
+        print("응답 앞부분:", resp[start+1:start+200])
+        return None
 
 def send_slack(msg: str):
     """슬랙으로 메시지 전송"""
