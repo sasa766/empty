@@ -74,7 +74,7 @@ def send_slack(msg: str):
 
 def main():
     # ✅ 테스트 알람 (무조건 발송)
-    send_slack("✅ 테스트 알람: 스크립트 정상 실행됨!")
+    send_slack("✅ 테스트 알람: 스크립트 정상 실행됨?")
 
     cur = START_DATE
     messages = []
