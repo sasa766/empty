@@ -2,7 +2,7 @@ import requests
 import re
 import json
 import os
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL")
 
@@ -19,6 +19,7 @@ BASE_SCHEDULE_ID = 100023
 # 하루에 11회차 (11시 ~ 21시)
 SESSIONS_PER_DAY = 11
 
+
 def build_schedules():
     schedules = {}
     schedule_id = BASE_SCHEDULE_ID
@@ -32,6 +33,7 @@ def build_schedules():
         cur += timedelta(days=1)
 
     return schedules
+
 
 def check_schedule(name, schedule_id):
     url = f"https://ticket.melon.com/tktapi/product/seatStateInfo.json?v=1&prodId={PRODUCT_ID}&scheduleId={schedule_id}&callback=jQuery123456"
@@ -47,6 +49,7 @@ def check_schedule(name, schedule_id):
     print(f"[{name}] 잔여 수량: {rmd_seat_cnt}")
     return rmd_seat_cnt
 
+
 def main():
     schedules = build_schedules()
     messages = []
@@ -60,8 +63,9 @@ def main():
         payload = { "text": "\n".join(messages) }
         requests.post(SLACK_WEBHOOK, json=payload)
 
- # 🧪 테스트용 알림 (1회성)
-    requests.post(SLACK_WEBHOOK, json={"text": "🎉 테스트 알림: 워크플로우가 정상 동작합니다!"})
+
+# 🧪 테스트용 알림 (1회성) → main 함수 밖
+requests.post(SLACK_WEBHOOK, json={"text": "🎉 테스트 알림: 워크플로우가 정상 동작합니다!"})
 
 
 if __name__ == "__main__":
