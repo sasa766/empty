@@ -1,18 +1,14 @@
 import requests
-import os
+import re
 import json
+import os
 from datetime import date, timedelta
 
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL")
 
-# 공연 product-id
 PRODUCT_ID = 211942
-
-# 시작일, 종료일
 START_DATE = date(2024, 9, 26)
 END_DATE   = date(2024, 11, 2)
-
-# 첫 스케줄 ID
 BASE_SCHEDULE_ID = 100023
 
 
@@ -29,34 +25,45 @@ def build_schedules():
     return schedules
 
 
-def check_schedule(name, schedule_id):
-    url = (
-        f"https://ticket.melon.com/tktapi/product/seatStateInfo.json?"
-        f"v=1&prodId={PRODUCT_ID}&scheduleId={schedule_id}&callback=jQuery123456"
-    )
-    resp = requests.get(url).text
-
-    # 🔎 응답 원본 300자만 출력
-    print(f"[DEBUG] {name} 응답: {resp[:300]}")
-
-    # JSONP → JSON 추출
-    if "(" in resp and resp.rfind(")") > 0:
-        json_text = resp[resp.find("(") + 1 : resp.rfind(")")]
+def parse_jsonp(resp_text, name):
+    """JSONP 또는 JSON 응답 파싱"""
+    # 1) JSONP → 괄호 안만 추출
+    match = re.search(r"\((\{.*\})\)", resp_text, re.S)
+    if match:
         try:
-            data = json.loads(json_text)
-            # 디버깅용 구조 출력
-            print(f"[DEBUG] {name} JSON keys: {list(data.keys())}")
-        except json.JSONDecodeError as e:
-            print(f"[{name}] ❌ JSON 디코딩 실패: {e}")
+            return json.loads(match.group(1))
+        except Exception as e:
+            print(f"[{name}] ❌ JSON 디코딩 실패 (JSONP): {e}")
             return None
-    else:
-        print(f"[{name}] ❌ JSONP 포맷 아님")
+
+    # 2) JSON → 그대로 파싱 시도
+    try:
+        return json.loads(resp_text)
+    except Exception:
+        print(f"[{name}] ❌ JSON 포맷 아님")
+        print(f"[DEBUG] 응답 일부: {resp_text[:300]}")
         return None
 
-    # 좌석 필드 확인
+
+def check_schedule(name, schedule_id):
+    url = f"https://ticket.melon.com/tktapi/product/seatStateInfo.json?v=1&prodId={PRODUCT_ID}&scheduleId={schedule_id}&callback=jQuery123456"
+    resp = requests.get(url).text
+
+    data = parse_jsonp(resp, name)
+    if not data:
+        return None
+
+    # 디버그 출력 (앞부분만)
+    print(f"[DEBUG] {name} 응답 데이터: {json.dumps(data, ensure_ascii=False)[:300]}")
+
+    # 좌석 수 확인
     rmd_seat_cnt = data.get("rmdSeatCnt")
-    print(f"[{name}] rmdSeatCnt 값: {rmd_seat_cnt}")
-    return rmd_seat_cnt
+    if rmd_seat_cnt is not None:
+        print(f"[{name}] 잔여 좌석: {rmd_seat_cnt}")
+        return rmd_seat_cnt
+    else:
+        print(f"[{name}] ⚠️ rmdSeatCnt 없음 → 키 확인 필요")
+        return None
 
 
 def main():
@@ -72,8 +79,7 @@ def main():
         payload = {"text": "\n".join(messages)}
         requests.post(SLACK_WEBHOOK, json=payload)
 
-    # 테스트 알림
-    requests.post(SLACK_WEBHOOK, json={"text": "🎉 테스트 알림: 워크플로우 정상 동작!"})
+    requests.post(SLACK_WEBHOOK, json={"text": "🎉 테스트 알림: 워크플로우 정상 동작"})
 
 
 if __name__ == "__main__":
