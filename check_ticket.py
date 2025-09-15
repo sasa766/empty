@@ -19,6 +19,17 @@ BASE_SCHEDULE_ID = 100023
 # 하루에 11회차 (11시 ~ 21시)
 SESSIONS_PER_DAY = 11
 
+# 요청 헤더 (브라우저 흉내)
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/127.0.0.0 Safari/537.36",
+    "Referer": "https://ticket.melon.com/",
+    "Accept": "*/*",
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Connection": "keep-alive"
+}
+
 
 def build_schedules():
     schedules = {}
@@ -50,13 +61,12 @@ def parse_jsonp(resp_text, name):
 
 def check_schedule(name, schedule_id):
     url = f"https://ticket.melon.com/tktapi/product/seatStateInfo.json?v=1&prodId={PRODUCT_ID}&scheduleId={schedule_id}&callback=jQuery123456"
-    resp = requests.get(url)
+    resp = requests.get(url, headers=HEADERS)
 
     # 응답 상태 확인용 DEBUG 로그
     print(f"[DEBUG] {name} 응답 상태코드: {resp.status_code}")
-    print(f"[DEBUG] {name} 응답 헤더: {dict(resp.headers)}")
     print(f"[DEBUG] {name} 응답 길이: {len(resp.text)}")
-    print(f"[DEBUG] {name} 응답 전문(앞부분 500자): {resp.text[:500]}")
+    print(f"[DEBUG] {name} 응답 전문(앞부분 300자): {resp.text[:300]}")
 
     if not resp.text.strip():
         print(f"[{name}] ❌ 응답이 비어있음")
@@ -66,7 +76,6 @@ def check_schedule(name, schedule_id):
     if not data:
         return None
 
-    print(f"[DEBUG] {name} 응답 JSON 키: {list(data.keys())}")
     rmd_seat_cnt = data.get("rmdSeatCnt")
     if rmd_seat_cnt is not None:
         print(f"[{name}] 잔여 좌석: {rmd_seat_cnt}")
