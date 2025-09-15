@@ -1,0 +1,26 @@
+name: 괴담출근 티켓 알림
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # 5분마다 실행 (한국 시간은 +9시간 고려)
+  workflow_dispatch: # 수동 실행도 가능
+
+jobs:
+  check-tickets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run ticket checker
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python check_ticket.py
