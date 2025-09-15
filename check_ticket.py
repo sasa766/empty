@@ -1,6 +1,6 @@
 import requests
-import json
 import os
+import json
 from datetime import date, timedelta
 
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL")
@@ -15,22 +15,17 @@ END_DATE   = date(2024, 11, 2)
 # 첫 스케줄 ID
 BASE_SCHEDULE_ID = 100023
 
-# 하루에 11회차 (11시 ~ 21시)
-SESSIONS_PER_DAY = 11
-
 
 def build_schedules():
     schedules = {}
     schedule_id = BASE_SCHEDULE_ID
     cur = START_DATE
-
     while cur <= END_DATE:
         for h in range(11, 22):  # 11시 ~ 21시
             label = f"{cur.strftime('%m월 %d일')} {h}시"
             schedules[label] = schedule_id
             schedule_id += 1
         cur += timedelta(days=1)
-
     return schedules
 
 
@@ -41,14 +36,16 @@ def check_schedule(name, schedule_id):
     )
     resp = requests.get(url).text
 
-    # 🔎 응답 앞부분 디버깅 출력 (최대 300자만 찍기)
-    print(f"[DEBUG] {name} 응답 미리보기: {resp[:300]}")
+    # 🔎 응답 원본 300자만 출력
+    print(f"[DEBUG] {name} 응답: {resp[:300]}")
 
-    # JSONP → JSON 부분 추출
+    # JSONP → JSON 추출
     if "(" in resp and resp.rfind(")") > 0:
         json_text = resp[resp.find("(") + 1 : resp.rfind(")")]
         try:
             data = json.loads(json_text)
+            # 디버깅용 구조 출력
+            print(f"[DEBUG] {name} JSON keys: {list(data.keys())}")
         except json.JSONDecodeError as e:
             print(f"[{name}] ❌ JSON 디코딩 실패: {e}")
             return None
@@ -56,9 +53,9 @@ def check_schedule(name, schedule_id):
         print(f"[{name}] ❌ JSONP 포맷 아님")
         return None
 
-    # 잔여 좌석 수 확인
-    rmd_seat_cnt = data.get("rmdSeatCnt", 0)
-    print(f"[{name}] 잔여 수량: {rmd_seat_cnt}")
+    # 좌석 필드 확인
+    rmd_seat_cnt = data.get("rmdSeatCnt")
+    print(f"[{name}] rmdSeatCnt 값: {rmd_seat_cnt}")
     return rmd_seat_cnt
 
 
@@ -75,11 +72,8 @@ def main():
         payload = {"text": "\n".join(messages)}
         requests.post(SLACK_WEBHOOK, json=payload)
 
-    # 🧪 테스트용 알림 (1회성)
-    requests.post(
-        SLACK_WEBHOOK,
-        json={"text": "🎉 테스트 알림: 워크플로우가 정상 동작합니다!"},
-    )
+    # 테스트 알림
+    requests.post(SLACK_WEBHOOK, json={"text": "🎉 테스트 알림: 워크플로우 정상 동작!"})
 
 
 if __name__ == "__main__":
