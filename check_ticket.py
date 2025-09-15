@@ -1,5 +1,4 @@
 import requests
-import re
 import json
 import os
 from datetime import date, timedelta
@@ -36,15 +35,28 @@ def build_schedules():
 
 
 def check_schedule(name, schedule_id):
-    url = f"https://ticket.melon.com/tktapi/product/seatStateInfo.json?v=1&prodId={PRODUCT_ID}&scheduleId={schedule_id}&callback=jQuery123456"
+    url = (
+        f"https://ticket.melon.com/tktapi/product/seatStateInfo.json?"
+        f"v=1&prodId={PRODUCT_ID}&scheduleId={schedule_id}&callback=jQuery123456"
+    )
     resp = requests.get(url).text
 
-    match = re.search(r"\((.*)\)", resp, re.S)
-    if not match:
-        print(f"[{name}] ❌ JSONP 파싱 실패")
+    # 🔎 응답 앞부분 디버깅 출력 (최대 300자만 찍기)
+    print(f"[DEBUG] {name} 응답 미리보기: {resp[:300]}")
+
+    # JSONP → JSON 부분 추출
+    if "(" in resp and resp.rfind(")") > 0:
+        json_text = resp[resp.find("(") + 1 : resp.rfind(")")]
+        try:
+            data = json.loads(json_text)
+        except json.JSONDecodeError as e:
+            print(f"[{name}] ❌ JSON 디코딩 실패: {e}")
+            return None
+    else:
+        print(f"[{name}] ❌ JSONP 포맷 아님")
         return None
 
-    data = json.loads(match.group(1))
+    # 잔여 좌석 수 확인
     rmd_seat_cnt = data.get("rmdSeatCnt", 0)
     print(f"[{name}] 잔여 수량: {rmd_seat_cnt}")
     return rmd_seat_cnt
@@ -60,12 +72,14 @@ def main():
             messages.append(f"🎫 {name} → {cnt}장 남음")
 
     if messages:
-        payload = { "text": "\n".join(messages) }
+        payload = {"text": "\n".join(messages)}
         requests.post(SLACK_WEBHOOK, json=payload)
 
-
-# 🧪 테스트용 알림 (1회성) → main 함수 밖
-requests.post(SLACK_WEBHOOK, json={"text": "🎉 테스트 알림: 워크플로우가 정상 동작합니다!"})
+    # 🧪 테스트용 알림 (1회성)
+    requests.post(
+        SLACK_WEBHOOK,
+        json={"text": "🎉 테스트 알림: 워크플로우가 정상 동작합니다!"},
+    )
 
 
 if __name__ == "__main__":
