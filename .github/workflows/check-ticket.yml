@@ -20,6 +20,12 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      # 🔍 여기서 runner 안에 실제 파일 구조를 찍어볼 거예요
+      - name: Debug – List files
+        run: |
+          pwd
+          ls -R
+
       - name: Run ticket checker
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
