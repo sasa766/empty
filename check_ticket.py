@@ -60,5 +60,9 @@ def main():
         payload = { "text": "\n".join(messages) }
         requests.post(SLACK_WEBHOOK, json=payload)
 
+ # 🧪 테스트용 알림 (1회성)
+    requests.post(SLACK_WEBHOOK, json={"text": "🎉 테스트 알림: 워크플로우가 정상 동작합니다!"})
+
+
 if __name__ == "__main__":
     main()
