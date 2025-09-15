@@ -20,8 +20,12 @@ HEADERS = {
 
 def fetch_schedules(day: str):
     """특정 날짜의 회차 리스트 가져오기"""
-    url = f"https://tktapi.melon.com/api/product/schedule/timelist.json?prodId={PRODUCT_ID}&perfDay={day}&pocCode=SC0002&perfTypeCode=GN0006&sellTypeCode=ST0001&seatCntDisplayYn=N&requestservicetype=P"
+    url = f"https://tktapi.melon.com/api/product/schedule/timelist.json?prodId={PRODUCT_ID}&perfDay={day}&pocCode=SC0002&perfTypeCode=GN0006&sellTypeCode=ST0001&seatCntDisplayYn=Y&requestservicetype=P"
     resp = requests.get(url, headers=HEADERS)
+
+    if resp.status_code != 200:
+        print(f"[ERROR] 상태코드 {resp.status_code}")
+        return []
 
     try:
         data = resp.json()
@@ -31,26 +35,34 @@ def fetch_schedules(day: str):
         print("응답 앞부분:", resp.text[:200])
         return []
 
-def check_seat(schedule_no: str):
-    """해당 회차(scheduleNo)의 잔여좌석 확인"""
-    url = f"https://ticket.melon.com/tktapi/product/seatStateInfo.json?v=1&prodId={PRODUCT_ID}&scheduleId={schedule_no}&callback=jQuery123456"
-    resp = requests.get(url, headers=HEADERS).text
+def fetch_grade(schedule_no: str, perf_day: str, cancel_close_dt: str):
+    """등급별 좌석 잔여 확인"""
+    url = (
+        f"https://tktapi.melon.com/api/product/schedule/gradelist.json"
+        f"?prodId={PRODUCT_ID}"
+        f"&pocCode=SC0002"
+        f"&perfDay={perf_day}"
+        f"&scheduleNoArray={schedule_no}"
+        f"&sellTypeCodeArray=ST0001"
+        f"&seatCntDisplayYn=Y"
+        f"&perfTypeCode=GN0006"
+        f"&seatPoc=1"
+        f"&cancelCloseDt={cancel_close_dt}"
+        f"&requestservicetype=P"
+    )
 
-    # JSONP → JSON 변환
-    start = resp.find("(")
-    end = resp.rfind(")")
-    if start == -1 or end == -1:
-        print(f"[ERROR] JSONP 파싱 실패 (schedule {schedule_no})")
-        print("응답 앞부분:", resp[:200])
-        return None
+    resp = requests.get(url, headers=HEADERS)
+    if resp.status_code != 200:
+        print(f"[ERROR] gradelist 상태코드 {resp.status_code}")
+        return []
 
     try:
-        data = json.loads(resp[start+1:end])
-        return data.get("rmdSeatCnt", 0)
+        data = resp.json()
+        return data.get("data", {}).get("seatGradeList", [])
     except Exception:
-        print(f"[ERROR] JSON 로드 실패 (schedule {schedule_no})")
-        print("응답 앞부분:", resp[start+1:start+200])
-        return None
+        print(f"[ERROR] gradelist JSON 파싱 실패 (schedule {schedule_no})")
+        print("응답 앞부분:", resp.text[:200])
+        return []
 
 def send_slack(msg: str):
     """슬랙으로 메시지 전송"""
@@ -69,15 +81,22 @@ def main():
 
     while cur <= END_DATE:
         perf_day = cur.strftime("%Y%m%d")
+        print(f"=== {perf_day} 날짜 체크 시작 ===")
+
         schedules = fetch_schedules(perf_day)
 
         for s in schedules:
-            name = f"{s['perfDay']} {s['perfTime'][:2]}시"
-            seat_cnt = check_seat(s["scheduleNo"])
-            print(f"[{name}] 잔여좌석: {seat_cnt}")
+            name = f"{s['perfDay']} {s['perfTime']}"
+            grades = fetch_grade(s["scheduleNo"], s["perfDay"], s["cancelCloseDt"])
+            total_remain = sum(g.get("rmdSeatCnt", 0) for g in grades)
 
-            if seat_cnt and seat_cnt > 0:
-                messages.append(f"🎫 {name} → {seat_cnt}석 남음")
+            print(f"[{name}] 총 잔여좌석: {total_remain}")
+
+            if total_remain > 0:
+                detail = ", ".join(
+                    [f"{g['seatGradeName']} {g['rmdSeatCnt']}석" for g in grades]
+                )
+                messages.append(f"🎫 {name} → {detail}")
 
         cur += timedelta(days=1)
 
