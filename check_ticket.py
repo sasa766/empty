@@ -1,6 +1,7 @@
 import os
 import requests
 import datetime
+import time
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
@@ -66,8 +67,4 @@ def check_ticket():
             print(f"[ERROR] 요청 실패: {e}")
 
 if __name__ == "__main__":
-    # ✅ Slack 알림 테스트
-    send_slack_message("🔔 테스트 알림: GitHub Actions + Slack 연동이 잘 작동합니다!")
-
-    # ✅ 실제 티켓 확인 실행
     check_ticket()
