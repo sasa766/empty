@@ -2,27 +2,26 @@ name: Check Melon Ticket
 
 on:
   schedule:
-    # 5분 단위 실행
-    - cron: "*/5 * * * *"
-  workflow_dispatch: # 수동 실행도 가능
+    - cron: "*/5 * * * *"   # 5분마다 실행 (GitHub 자체 스케줄러)
+  workflow_dispatch:         # 👉 수동 실행 버튼 활성화 (UI + API 호출)
 
 jobs:
   check:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          pip install -r requirements.txt
 
       - name: Run ticket checker
+        run: python check_ticket.py
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: python check_ticket.py
