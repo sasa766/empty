@@ -1,115 +1,104 @@
 import requests
-import os
-from datetime import date, timedelta
+import datetime
+import concurrent.futures
 
-# 🎫 공연 정보
-PRODUCT_ID = "211942"
+# 티켓 정보
+PROD_ID = "211942"
 POC_CODE = "SC0002"
 PERF_TYPE_CODE = "GN0006"
 SELL_TYPE_CODE = "ST0001"
 
-# 🔔 Slack Webhook URL (환경변수에서 가져오기)
-SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL")
+# Slack Webhook URL
+SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/XXXX/XXXX/XXXX"  # 실제 값 넣으세요
 
-# 📅 공연 기간
-START_DATE = date(2025, 9, 17)   # 시작일
-END_DATE   = date(2025, 11, 2)   # 종료일
-
-# 🌐 브라우저 흉내 헤더
+# User-Agent 헤더
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/117.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
-    "Referer": f"https://ticket.melon.com/performance/index.htm?prodId={PRODUCT_ID}",
+    "Referer": "https://ticket.melon.com/",
     "Origin": "https://ticket.melon.com",
     "Connection": "keep-alive"
 }
 
 
-def fetch_schedules(day: str):
-    """특정 날짜의 timelist.json 불러오기"""
+def send_slack_message(text: str):
+    """슬랙으로 메시지 전송"""
+    try:
+        requests.post(SLACK_WEBHOOK_URL, json={"text": text}, timeout=5)
+    except Exception as e:
+        print(f"⚠️ Slack 전송 실패: {e}")
+
+
+def check_schedule(date_str, schedule):
+    """특정 날짜+회차 잔여석 체크"""
+    perf_dt_seq = schedule.get("perfDtSeq")
+    perf_time = schedule.get("perfTime", "시간 미정")
+
     url = (
-        f"https://tktapi.melon.com/api/product/schedule/timelist.json"
-        f"?prodId={PRODUCT_ID}&perfDay={day}&pocCode={POC_CODE}"
+        f"https://tktapi.melon.com/api/product/schedule/gradelist.json?"
+        f"prodId={PROD_ID}&pocCode={POC_CODE}&perfDtSeq={perf_dt_seq}"
+        f"&sellTypeCode={SELL_TYPE_CODE}&seatCntDisplayYn=N"
+    )
+
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=5)
+        if res.status_code == 200:
+            grades = res.json().get("seatGradeList", [])
+            for g in grades:
+                grade = g.get("seatGradeName", "등급미정")
+                remain = g.get("remainCnt", 0)
+                if remain > 0:
+                    msg = f"🎟️ {date_str} {perf_time} - {grade} 잔여석 {remain}석"
+                    print(msg)
+                    send_slack_message(msg)
+        else:
+            print(f"❌ gradelist 실패 ({date_str}, {perf_time}, code={res.status_code})")
+    except Exception as e:
+        print(f"⚠️ Exception: {e} ({date_str} {perf_time})")
+
+
+def fetch_schedules(date_str):
+    """특정 날짜의 회차 목록 가져오기"""
+    url = (
+        f"https://tktapi.melon.com/api/product/schedule/timelist.json?"
+        f"prodId={PROD_ID}&perfDay={date_str}&pocCode={POC_CODE}"
         f"&perfTypeCode={PERF_TYPE_CODE}&sellTypeCode={SELL_TYPE_CODE}"
         f"&seatCntDisplayYn=N&interlockTypeCode=&corpCodeNo=&reflashYn=N"
         f"&requestservicetype=P"
     )
 
-    resp = requests.get(url, headers=HEADERS)
-    if resp.status_code != 200:
-        print(f"❌ timelist 조회 실패 ({day}, code {resp.status_code})")
-        return []
-
     try:
-        data = resp.json()
-        return data.get("data", {}).get("perfTimelist", [])
-    except Exception:
-        print(f"⚠️ JSON 파싱 실패 ({day})")
-        return []
-
-
-def check_seat(schedule):
-    """gradelist.json 으로 잔여석 확인"""
-    url = (
-        f"https://tktapi.melon.com/api/product/schedule/gradelist.json"
-        f"?prodId={PRODUCT_ID}&pocCode={POC_CODE}&perfDay={schedule['perfDay']}"
-        f"&scheduleNoArray={schedule['scheduleNo']}&sellTypeCodeArray={SELL_TYPE_CODE}"
-        f"&seatCntDisplayYn=N&perfTypeCode={PERF_TYPE_CODE}&seatPoc=1"
-        f"&cancelCloseDt={schedule['cancelCloseDt']}&corpCodeNo=&interlockTypeCode="
-        f"&reflashYn=N&requestservicetype=P"
-    )
-
-    resp = requests.get(url, headers=HEADERS)
-    if resp.status_code != 200:
-        print(f"❌ gradelist 조회 실패 (schedule {schedule['scheduleNo']})")
-        return None
-
-    try:
-        data = resp.json()
-        total_cnt = 0
-        for g in data.get("data", {}).get("seatGradelist", []):
-            total_cnt += g.get("remainCnt", 0)
-        return total_cnt
-    except Exception:
-        print(f"⚠️ gradelist JSON 파싱 실패 (schedule {schedule['scheduleNo']})")
-        return None
-
-
-def send_slack(msg: str):
-    """슬랙 알람 전송"""
-    if not SLACK_WEBHOOK:
-        print("⚠️ SLACK_WEBHOOK_URL 환경변수가 없음 → 메시지 콘솔에 출력")
-        print(msg)
-        return
-    try:
-        requests.post(SLACK_WEBHOOK, json={"text": msg})
+        res = requests.get(url, headers=HEADERS, timeout=5)
+        if res.status_code == 200:
+            return res.json().get("scheduleList", [])
+        else:
+            print(f"❌ timelist 실패 ({date_str}, code={res.status_code})")
+            return []
     except Exception as e:
-        print(f"⚠️ Slack 전송 실패: {e}")
+        print(f"⚠️ Exception: {e} ({date_str})")
+        return []
 
 
-def main():
-    cur = START_DATE
+def check_tickets():
+    start_date = datetime.date(2025, 9, 24)
+    end_date = datetime.date(2025, 11, 2)
+    dates_to_check = [(start_date + datetime.timedelta(days=i)).strftime("%Y%m%d")
+                      for i in range((end_date - start_date).days + 1)]
 
-    while cur <= END_DATE:
-        perf_day = cur.strftime("%Y%m%d")
-        print(f"\n=== {perf_day} 날짜 체크 시작 ===")
-
-        schedules = fetch_schedules(perf_day)
-
+    # 날짜별로 스케줄 모으기 (직렬 1회)
+    tasks = []
+    for d in dates_to_check:
+        schedules = fetch_schedules(d)
         for s in schedules:
-            name = f"{s['perfDay']} {s['perfTime'][:2]}시"
-            seat_cnt = check_seat(s)
+            tasks.append((d, s))
 
-            if seat_cnt is not None:
-                print(f"[{name}] 잔여석: {seat_cnt}")
-                if seat_cnt > 0:
-                    msg = f"🎫 {name} → {seat_cnt}석 남음"
-                    send_slack(msg)  # ✅ 즉시 알림 전송
-
-        cur += timedelta(days=1)
+    # 스케줄+날짜 병렬 실행 (풀 병렬)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+        futures = [executor.submit(check_schedule, d, s) for d, s in tasks]
+        concurrent.futures.wait(futures)
 
 
 if __name__ == "__main__":
-    main()
+    check_tickets()
