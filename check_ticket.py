@@ -1,70 +1,97 @@
-import os
 import requests
-import datetime
-import time
+import os
+from datetime import date, timedelta
 
-SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
+# 슬랙 웹훅 (GitHub Secrets -> SLACK_WEBHOOK_URL 등록)
+SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL")
+PRODUCT_ID = 211942
 
-def send_slack_message(message: str):
-    if not SLACK_WEBHOOK_URL:
-        print("[경고] SLACK_WEBHOOK_URL 환경변수가 없습니다.")
+# 공연 기간 설정
+START_DATE = date(2025, 9, 26)
+END_DATE   = date(2025, 11, 2)
+
+# 브라우저 흉내 헤더 (406 방지)
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    "Referer": f"https://ticket.melon.com/performance/index.htm?prodId={PRODUCT_ID}",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "X-Requested-With": "XMLHttpRequest",
+    "Connection": "keep-alive",
+}
+
+def send_slack(msg: str):
+    """슬랙 알림"""
+    if not SLACK_WEBHOOK:
+        print("⚠️ SLACK_WEBHOOK_URL 환경변수가 없습니다.")
         return
+    requests.post(SLACK_WEBHOOK, json={"text": msg})
+
+def fetch_schedules(day: str):
+    """특정 날짜 회차 리스트 조회"""
+    url = (
+        f"https://tktapi.melon.com/api/product/schedule/timelist.json"
+        f"?prodId={PRODUCT_ID}&perfDay={day}&pocCode=SC0002"
+        f"&perfTypeCode=GN0006&sellTypeCode=ST0001"
+        f"&seatCntDisplayYn=N&requestservicetype=P"
+    )
+
+    resp = requests.get(url, headers=HEADERS)
+    if resp.status_code != 200:
+        print(f"[ERROR] timelist {day} 조회 실패 (code {resp.status_code})")
+        return []
+
     try:
-        res = requests.post(
-            SLACK_WEBHOOK_URL,
-            json={"text": message},
-            headers={"Content-Type": "application/json"},
-        )
-        if res.status_code != 200:
-            print(f"[ERROR] Slack 전송 실패: {res.status_code}, {res.text}")
-    except Exception as e:
-        print(f"[ERROR] Slack 예외 발생: {e}")
+        data = resp.json()
+        return data.get("data", {}).get("perfTimelist", [])
+    except Exception:
+        print("[ERROR] timelist JSON 파싱 실패")
+        return []
 
-def check_ticket():
-    base_url = "https://tktapi.melon.com/api/product/schedule/timelist.json"
-    prod_id = "211942"
-    poc_code = "SC0002"
-    perf_type_code = "GN0006"
-    sell_type_code = "ST0001"
+def check_seat(schedule):
+    """잔여 좌석 확인"""
+    url = (
+        f"https://tktapi.melon.com/api/product/schedule/gradelist.json"
+        f"?prodId={PRODUCT_ID}&pocCode=SC0002&perfDay={schedule['perfDay']}"
+        f"&scheduleNoArray={schedule['scheduleNo']}&sellTypeCodeArray=ST0001"
+        f"&seatCntDisplayYn=N&perfTypeCode=GN0006&seatPoc=1"
+        f"&cancelCloseDt={schedule['cancelCloseDt']}"
+        f"&requestservicetype=P"
+    )
 
-    today = datetime.date.today()
-    end_date = today + datetime.timedelta(days=50)  # 최대 50일 확인
+    resp = requests.get(url, headers=HEADERS)
+    if resp.status_code != 200:
+        print(f"[ERROR] gradelist 조회 실패 ({schedule['scheduleNo']})")
+        return None
 
-    for single_date in (today + datetime.timedelta(days=n) for n in range((end_date - today).days + 1)):
-        perf_day = single_date.strftime("%Y%m%d")
-        print(f"=== {perf_day} 날짜 체크 시작 ===")
+    try:
+        total_cnt = sum(g.get("remainCnt", 0) for g in resp.json().get("data", {}).get("seatGradelist", []))
+        return total_cnt
+    except Exception:
+        print("[ERROR] gradelist JSON 파싱 실패")
+        return None
 
-        url = (
-            f"{base_url}?prodId={prod_id}"
-            f"&perfDay={perf_day}"
-            f"&pocCode={poc_code}"
-            f"&perfTypeCode={perf_type_code}"
-            f"&sellTypeCode={sell_type_code}"
-            f"&seatCntDisplayYn=N"
-            f"&interlockTypeCode=&corpCodeNo=&reflashYn=N"
-            f"&requestservicetype=P"
-        )
-        print(f"🔗 요청 URL: {url}")
+def main():
+    cur = START_DATE
+    messages = []
 
-        try:
-            response = requests.get(url, timeout=10)
-            if response.status_code != 200:
-                print(f"[ERROR] 상태코드 {response.status_code}")
-                continue
+    while cur <= END_DATE:
+        perf_day = cur.strftime("%Y%m%d")
+        schedules = fetch_schedules(perf_day)
 
-            data = response.json()
-            schedules = data.get("scheduleList", [])
-            print(f"→ 스케줄 개수: {len(schedules)}")
+        for s in schedules:
+            name = f"{s['perfDay']} {s['perfTime'][:2]}시"
+            seat_cnt = check_seat(s)
+            print(f"[{name}] 잔여좌석: {seat_cnt}")
 
-            for schedule in schedules:
-                seat_cnt = schedule.get("seatCnt", 0)
-                time_info = schedule.get("perfTime", "시간미정")
+            if seat_cnt and seat_cnt > 0:
+                messages.append(f"🎫 {name} → {seat_cnt}석 남음")
 
-                print(f"[{perf_day} {time_info}] 잔여좌석: {seat_cnt}")
-                if seat_cnt and seat_cnt > 0:
-                    send_slack_message(f"🎟️ {perf_day} {time_info} 잔여좌석 발견! → {seat_cnt}석")
-        except Exception as e:
-            print(f"[ERROR] 요청 실패: {e}")
+        cur += timedelta(days=1)
+
+    if messages:
+        send_slack("\n".join(messages))
+    else:
+        print("빈자리 없음")
 
 if __name__ == "__main__":
-    check_ticket()
+    main()
