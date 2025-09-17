@@ -12,8 +12,8 @@ SELL_TYPE_CODE = "ST0001"
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL")
 
 # 📅 공연 기간
-START_DATE = date(2025, 9, 17)   # 오늘 기준 시작일 (원하면 수정 가능)
-END_DATE   = date(2025, 11, 2)   # 공연 종료일
+START_DATE = date(2025, 9, 17)   # 시작일
+END_DATE   = date(2025, 11, 2)   # 종료일
 
 # 🌐 브라우저 흉내 헤더
 HEADERS = {
@@ -80,7 +80,7 @@ def check_seat(schedule):
 def send_slack(msg: str):
     """슬랙 알람 전송"""
     if not SLACK_WEBHOOK:
-        print("⚠️ SLACK_WEBHOOK_URL 환경변수가 없음 → 메시지 출력 대신 콘솔 표시")
+        print("⚠️ SLACK_WEBHOOK_URL 환경변수가 없음 → 메시지 콘솔에 출력")
         print(msg)
         return
     try:
@@ -90,7 +90,6 @@ def send_slack(msg: str):
 
 
 def main():
-    messages = []
     cur = START_DATE
 
     while cur <= END_DATE:
@@ -106,15 +105,10 @@ def main():
             if seat_cnt is not None:
                 print(f"[{name}] 잔여석: {seat_cnt}")
                 if seat_cnt > 0:
-                    messages.append(f"🎫 {name} → {seat_cnt}석 남음")
+                    msg = f"🎫 {name} → {seat_cnt}석 남음"
+                    send_slack(msg)  # ✅ 즉시 알림 전송
 
         cur += timedelta(days=1)
-
-    # ✅ 좌석 있으면 Slack 알람
-    if messages:
-        send_slack("\n".join(messages))
-    else:
-        print("빈자리 없음")
 
 
 if __name__ == "__main__":
