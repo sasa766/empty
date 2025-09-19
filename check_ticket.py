@@ -1,13 +1,9 @@
 import requests
 import datetime
 import os
-from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# .env 파일 불러오기
-load_dotenv()
-
-# Slack Webhook URL (환경변수에서 읽기)
+# Slack Webhook URL (Secrets에서 주입됨)
 SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK")
 
 # 티켓 정보
