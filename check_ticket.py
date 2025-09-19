@@ -107,14 +107,8 @@ def main():
                 print(result)
 
 if __name__ == "__main__":
-    # ✅ 실행 시작 알림
-    send_slack("🚀 티켓체커 실행 시작!")
+    # 테스트 알람 (무조건 전송)
+    send_slack("🚨 테스트 알람: GitHub Actions에서 Slack Webhook 정상 작동 확인!")
 
-    # ✅ 테스트 알람 (무조건 발송)
-    send_slack("🧪 [TEST] Slack 알람 정상 동작 확인!")
-
-    # 실제 티켓 체크 실행
+    # 기존 로직 실행
     main()
-
-    # ✅ 실행 종료 알림
-    send_slack("🏁 티켓체커 실행 종료!")
