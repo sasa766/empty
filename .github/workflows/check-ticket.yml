@@ -2,8 +2,8 @@ name: Check Melon Ticket
 
 on:
   schedule:
-    - cron: "*/3 * * * *"   # 3분마다 실행
-  workflow_dispatch:         # 수동 실행 가능
+    - cron: "*/3 * * * *"  # 3분마다 실행
+  workflow_dispatch:       # 수동 실행 가능
 
 jobs:
   run-checker:
