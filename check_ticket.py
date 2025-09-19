@@ -6,6 +6,8 @@ import os
 # Slack Webhook URL (환경변수에서 가져오기)
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL")
 
+print(f"🔍 환경변수 SLACK_WEBHOOK_URL = {SLACK_WEBHOOK}")  # ✅ 환경변수 확인 로그
+
 # 티켓 정보
 PROD_ID = "211942"
 POC_CODE = "SC0002"
@@ -27,12 +29,15 @@ START_DATE = datetime.date(2025, 9, 24)
 END_DATE = datetime.date(2025, 11, 2)
 
 def send_slack(msg: str):
-    """슬랙으로 메시지 전송"""
+    """슬랙으로 메시지 전송 (디버그 로그 포함)"""
     if not SLACK_WEBHOOK:
-        print("⚠️ Slack Webhook 미설정")
+        print("⚠️ Slack Webhook 미설정 (환경변수 없음)")
         return
     try:
-        requests.post(SLACK_WEBHOOK, json={"text": msg})
+        print(f"📤 Slack 전송 시도 → {msg}")  # ✅ 보낼 메시지 출력
+        resp = requests.post(SLACK_WEBHOOK, json={"text": msg})
+        print(f"📥 Slack 응답 코드: {resp.status_code}")  # ✅ 응답 코드 출력
+        print(f"📥 Slack 응답 본문: {resp.text}")         # ✅ 응답 내용 출력
     except Exception as e:
         print(f"⚠️ Slack 전송 오류: {e}")
 
@@ -49,6 +54,8 @@ def fetch_and_check(day: datetime.date):
 
     try:
         resp = requests.get(url, headers=HEADERS)
+        print(f"🔗 요청 URL: {url}")
+        print(f"📥 응답 코드: {resp.status_code}")
         if resp.status_code != 200:
             return f"❌ {perf_day} 일정 조회 실패 (code {resp.status_code})"
 
@@ -84,14 +91,20 @@ def fetch_seat_count(schedule):
     )
     try:
         resp = requests.get(url, headers=HEADERS)
+        print(f"🔗 좌석 요청 URL: {url}")
+        print(f"📥 좌석 응답 코드: {resp.status_code}")
         if resp.status_code != 200:
             return None
         data = resp.json()
         return sum(g.get("remainCnt", 0) for g in data.get("data", {}).get("seatGradelist", []))
-    except:
+    except Exception as e:
+        print(f"⚠️ 좌석 조회 오류: {e}")
         return None
 
 def main():
+    # ✅ 시작 알람
+    send_slack("🚨 Slack 알람 테스트 시작")
+
     cur = START_DATE
     dates = []
     while cur <= END_DATE:
@@ -106,9 +119,8 @@ def main():
             if result:
                 print(result)
 
-if __name__ == "__main__":
-    # 테스트 알람 (무조건 전송)
-    send_slack("🚨 테스트 알람: GitHub Actions에서 Slack Webhook 정상 작동 확인!")
+    # ✅ 종료 알람
+    send_slack("🏁 Slack 알람 테스트 종료")
 
-    # 기존 로직 실행
+if __name__ == "__main__":
     main()
