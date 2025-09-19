@@ -3,7 +3,7 @@ import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Slack Webhook URL (직접 코드에 넣음)
-SLACK_WEBHOOK = "https://hooks.slack.com/services/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"
+SLACK_WEBHOOK = "https://hooks.slack.com/services/T09EQMWAN3Z/B09G0USTYㅇMV9j"
 
 # 티켓 정보
 PROD_ID = "211942"
