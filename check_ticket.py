@@ -107,4 +107,8 @@ def main():
                 print(result)
 
 if __name__ == "__main__":
+    # ✅ Slack 연결 확인용 테스트 메시지 (딱 1번만 실행)
+    send_slack("✅ 티켓체커 Slack 연결 확인용 테스트 메시지입니다!")
+
+    # 실제 티켓 체크 실행
     main()
