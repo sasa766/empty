@@ -1,9 +1,14 @@
 import requests
 import datetime
+import os
+from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Slack Webhook URL (직접 코드에 넣음)
-SLACK_WEBHOOK = "https://hooks.slack.com/services/T09EQMWAN3Z/B09G0USTYㅇMV9j"
+# .env 파일 불러오기
+load_dotenv()
+
+# Slack Webhook URL (환경변수에서 읽기)
+SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK")
 
 # 티켓 정보
 PROD_ID = "211942"
@@ -11,7 +16,7 @@ POC_CODE = "SC0002"
 PERF_TYPE_CODE = "GN0006"
 SELL_TYPE_CODE = "ST0001"
 
-# User-Agent 헤더 강화 (Melon API 우회용)
+# User-Agent 헤더 (Melon API 우회용)
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
