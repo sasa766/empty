@@ -28,10 +28,6 @@ HEADERS = {
 START_DATE = datetime.date(2025, 9, 24)
 END_DATE = datetime.date(2025, 11, 2)
 
-# ✅ 테스트용 강제 알람 조건
-TEST_DAY = "20251026"   # YYYYMMDD
-TEST_TIME = "11"        # "11시" 시작 시간
-
 def send_slack(msg: str):
     """슬랙으로 메시지 전송"""
     if not SLACK_WEBHOOK:
@@ -69,19 +65,18 @@ def fetch_and_check(day: datetime.date):
         for s in schedules:
             seat_cnt = fetch_seat_count(s)
             perf_time = s.get("perfTime", "????")
-
-            # ✅ 테스트 강제 알람 트리거
-            if s.get("perfDay") == TEST_DAY and perf_time.startswith(TEST_TIME):
-                print(f"🧪 테스트 트리거 발동 → {TEST_DAY} {TEST_TIME}시 강제 잔여좌석 3")
-                seat_cnt = 3
+            formatted_time = perf_time[:2] + "시" if len(perf_time) >= 2 else perf_time
 
             if seat_cnt is None:
                 print(f"[{perf_day} - {perf_time}] ⚠️ 좌석 응답 없음/에러")
             else:
                 log_line = f"[{perf_day} - {perf_time}] 잔여좌석 : {seat_cnt}"
                 print(log_line)
+
+                # ✅ 잔여좌석이 있을 때만 알람 전송
                 if seat_cnt > 0:
-                    send_slack(f"🎫 {perf_day} {perf_time} → 잔여좌석 {seat_cnt}석")
+                    slack_msg = f"{perf_day[:4]}-{perf_day[4:6]}-{perf_day[6:]} {formatted_time} -> 잔여좌석 : {seat_cnt}"
+                    send_slack(slack_msg)
 
     except Exception as e:
         print(f"[{perf_day}] ⚠️ 일정 처리 오류: {e}")
