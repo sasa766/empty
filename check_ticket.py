@@ -32,7 +32,9 @@ def send_slack(msg: str):
         print("⚠️ Slack Webhook 미설정")
         return
     try:
-        requests.post(SLACK_WEBHOOK, json={"text": msg})
+        resp = requests.post(SLACK_WEBHOOK, json={"text": msg})
+        if resp.status_code != 200:
+            print(f"⚠️ Slack 응답 오류: {resp.status_code} {resp.text}")
     except Exception as e:
         print(f"⚠️ Slack 전송 오류: {e}")
 
@@ -50,14 +52,19 @@ def fetch_and_check(day: datetime.date):
     try:
         resp = requests.get(url, headers=HEADERS)
         if resp.status_code != 200:
-            return f"❌ {perf_day} 일정 조회 실패 (code {resp.status_code})"
+            msg = f"❌ {perf_day} 일정 조회 실패 (code {resp.status_code})"
+            send_slack(msg)
+            return msg
 
         data = resp.json()
         schedules = data.get("data", {}).get("perfTimelist", [])
         if not schedules:
-            return f"ℹ️ {perf_day} 일정 없음"
+            msg = f"ℹ️ {perf_day} 일정 없음"
+            send_slack(msg)
+            return msg
 
         messages = [f"✅ {perf_day} 일정 {len(schedules)}건 확인"]
+        send_slack(messages[0])  # 날짜별 일정 건수도 무조건 전송
 
         # 각 스케줄별 좌석 확인
         for s in schedules:
@@ -70,7 +77,9 @@ def fetch_and_check(day: datetime.date):
         return "\n".join(messages)
 
     except Exception as e:
-        return f"⚠️ {perf_day} 처리 오류: {e}"
+        msg = f"⚠️ {perf_day} 처리 오류: {e}"
+        send_slack(msg)
+        return msg
 
 def fetch_seat_count(schedule):
     """좌석 잔여수 확인"""
@@ -107,8 +116,11 @@ def main():
                 print(result)
 
 if __name__ == "__main__":
-    # ✅ Slack 연결 확인용 테스트 메시지 (딱 1번만 실행)
-    send_slack("✅ 티켓체커 Slack 연결 확인용 테스트 메시지입니다!")
+    # ✅ 실행 시작 알림
+    send_slack("🚀 티켓체커 실행 시작!")
 
     # 실제 티켓 체크 실행
     main()
+
+    # ✅ 실행 종료 알림
+    send_slack("🏁 티켓체커 실행 종료!")
