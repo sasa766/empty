@@ -14,19 +14,24 @@ POC_CODE = "SC0002"
 PERF_TYPE_CODE = "GN0006"
 SELL_TYPE_CODE = "ST0001"
 
-# User-Agent 헤더 (브라우저 흉내)
+# User-Agent 헤더 (브라우저 흉내 + 필수 헤더 추가)
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/117.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/117.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
     "Referer": "https://ticket.melon.com/",
     "Origin": "https://ticket.melon.com",
-    "Connection": "keep-alive"
+    "X-Requested-With": "XMLHttpRequest",
+    "Connection": "keep-alive",
 }
 
 START_DATE = datetime.date(2025, 9, 24)
 END_DATE = datetime.date(2025, 11, 2)
+
 
 def send_slack(msg: str):
     """슬랙으로 메시지 전송 (디버그 로그 포함)"""
@@ -40,6 +45,7 @@ def send_slack(msg: str):
         print(f"📥 Slack 응답 본문: {resp.text}")         # ✅ 응답 내용 출력
     except Exception as e:
         print(f"⚠️ Slack 전송 오류: {e}")
+
 
 def fetch_and_check(day: datetime.date):
     """특정 날짜의 공연 회차와 잔여석 확인"""
@@ -56,6 +62,7 @@ def fetch_and_check(day: datetime.date):
         resp = requests.get(url, headers=HEADERS)
         print(f"🔗 요청 URL: {url}")
         print(f"📥 응답 코드: {resp.status_code}")
+        print(f"📥 응답 헤더: {resp.headers}")
         if resp.status_code != 200:
             return f"❌ {perf_day} 일정 조회 실패 (code {resp.status_code})"
 
@@ -79,6 +86,7 @@ def fetch_and_check(day: datetime.date):
     except Exception as e:
         return f"⚠️ {perf_day} 처리 오류: {e}"
 
+
 def fetch_seat_count(schedule):
     """좌석 잔여수 확인"""
     url = (
@@ -93,6 +101,7 @@ def fetch_seat_count(schedule):
         resp = requests.get(url, headers=HEADERS)
         print(f"🔗 좌석 요청 URL: {url}")
         print(f"📥 좌석 응답 코드: {resp.status_code}")
+        print(f"📥 좌석 응답 헤더: {resp.headers}")
         if resp.status_code != 200:
             return None
         data = resp.json()
@@ -100,6 +109,7 @@ def fetch_seat_count(schedule):
     except Exception as e:
         print(f"⚠️ 좌석 조회 오류: {e}")
         return None
+
 
 def main():
     # ✅ 시작 알람
@@ -121,6 +131,7 @@ def main():
 
     # ✅ 종료 알람
     send_slack("🏁 Slack 알람 테스트 종료")
+
 
 if __name__ == "__main__":
     main()
