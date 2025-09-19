@@ -24,4 +24,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run ticket checker
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python check_ticket.py
