@@ -14,38 +14,30 @@ POC_CODE = "SC0002"
 PERF_TYPE_CODE = "GN0006"
 SELL_TYPE_CODE = "ST0001"
 
-# User-Agent 헤더 (브라우저 흉내 + 필수 헤더 추가)
+# User-Agent 헤더 (브라우저 흉내)
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/117.0.0.0 Safari/537.36"
-    ),
-    "Accept": "application/json, text/javascript, */*; q=0.01",
-    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/117.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
     "Referer": "https://ticket.melon.com/",
     "Origin": "https://ticket.melon.com",
-    "X-Requested-With": "XMLHttpRequest",
-    "Connection": "keep-alive",
+    "Connection": "keep-alive"
 }
 
 START_DATE = datetime.date(2025, 9, 24)
 END_DATE = datetime.date(2025, 11, 2)
 
-
 def send_slack(msg: str):
-    """슬랙으로 메시지 전송 (디버그 로그 포함)"""
+    """슬랙으로 메시지 전송"""
     if not SLACK_WEBHOOK:
         print("⚠️ Slack Webhook 미설정 (환경변수 없음)")
         return
     try:
-        print(f"📤 Slack 전송 시도 → {msg}")  # ✅ 보낼 메시지 출력
         resp = requests.post(SLACK_WEBHOOK, json={"text": msg})
-        print(f"📥 Slack 응답 코드: {resp.status_code}")  # ✅ 응답 코드 출력
-        print(f"📥 Slack 응답 본문: {resp.text}")         # ✅ 응답 내용 출력
+        print(f"📤 Slack 전송: {msg} (응답 {resp.status_code})")
     except Exception as e:
         print(f"⚠️ Slack 전송 오류: {e}")
-
 
 def fetch_and_check(day: datetime.date):
     """특정 날짜의 공연 회차와 잔여석 확인"""
@@ -60,32 +52,29 @@ def fetch_and_check(day: datetime.date):
 
     try:
         resp = requests.get(url, headers=HEADERS)
-        print(f"🔗 요청 URL: {url}")
-        print(f"📥 응답 코드: {resp.status_code}")
-        print(f"📥 응답 헤더: {resp.headers}")
         if resp.status_code != 200:
-            return f"❌ {perf_day} 일정 조회 실패 (code {resp.status_code})"
+            print(f"[{perf_day}] ❌ 일정 조회 실패 (code {resp.status_code})")
+            return
 
         data = resp.json()
         schedules = data.get("data", {}).get("perfTimelist", [])
         if not schedules:
-            return f"ℹ️ {perf_day} 일정 없음"
+            print(f"[{perf_day}] ℹ️ 일정 없음")
+            return
 
-        messages = [f"✅ {perf_day} 일정 {len(schedules)}건 확인"]
-
-        # 각 스케줄별 좌석 확인
         for s in schedules:
             seat_cnt = fetch_seat_count(s)
-            if seat_cnt and seat_cnt > 0:
-                msg = f"🎫 {perf_day} {s['perfTime'][:2]}시 → {seat_cnt}석 남음"
-                messages.append(msg)
-                send_slack(msg)
-
-        return "\n".join(messages)
+            perf_time = s.get("perfTime", "????")
+            if seat_cnt is None:
+                print(f"[{perf_day} - {perf_time}] ⚠️ 좌석 응답 없음/에러")
+            else:
+                log_line = f"[{perf_day} - {perf_time}] 잔여좌석 : {seat_cnt}"
+                print(log_line)
+                if seat_cnt > 0:
+                    send_slack(f"🎫 {perf_day} {perf_time} → 잔여좌석 {seat_cnt}석")
 
     except Exception as e:
-        return f"⚠️ {perf_day} 처리 오류: {e}"
-
+        print(f"[{perf_day}] ⚠️ 일정 처리 오류: {e}")
 
 def fetch_seat_count(schedule):
     """좌석 잔여수 확인"""
@@ -99,22 +88,16 @@ def fetch_seat_count(schedule):
     )
     try:
         resp = requests.get(url, headers=HEADERS)
-        print(f"🔗 좌석 요청 URL: {url}")
-        print(f"📥 좌석 응답 코드: {resp.status_code}")
-        print(f"📥 좌석 응답 헤더: {resp.headers}")
         if resp.status_code != 200:
+            print(f"  ↳ ❌ 좌석 조회 실패 (code {resp.status_code}) URL={url}")
             return None
         data = resp.json()
         return sum(g.get("remainCnt", 0) for g in data.get("data", {}).get("seatGradelist", []))
     except Exception as e:
-        print(f"⚠️ 좌석 조회 오류: {e}")
+        print(f"  ↳ ⚠️ 좌석 조회 오류: {e}")
         return None
 
-
 def main():
-    # ✅ 시작 알람
-    send_slack("🚨 Slack 알람 테스트 시작")
-
     cur = START_DATE
     dates = []
     while cur <= END_DATE:
@@ -125,13 +108,7 @@ def main():
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(fetch_and_check, d): d for d in dates}
         for future in as_completed(futures):
-            result = future.result()
-            if result:
-                print(result)
-
-    # ✅ 종료 알람
-    send_slack("🏁 Slack 알람 테스트 종료")
-
+            future.result()
 
 if __name__ == "__main__":
     main()
