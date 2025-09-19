@@ -1,10 +1,9 @@
 import requests
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import os
 
-# Slack Webhook URL (환경변수에서 가져오기)
-SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL")
+# Slack Webhook URL (직접 코드에 넣음)
+SLACK_WEBHOOK = "https://hooks.slack.com/services/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"
 
 # 티켓 정보
 PROD_ID = "211942"
@@ -12,14 +11,16 @@ POC_CODE = "SC0002"
 PERF_TYPE_CODE = "GN0006"
 SELL_TYPE_CODE = "ST0001"
 
-# User-Agent 헤더 (브라우저 흉내)
+# User-Agent 헤더 강화 (Melon API 우회용)
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/117.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
     "Referer": "https://ticket.melon.com/",
     "Origin": "https://ticket.melon.com",
+    "Host": "tktapi.melon.com",
     "Connection": "keep-alive"
 }
 
